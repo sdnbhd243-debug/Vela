@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>VELA — Gravity Sail</title>
+  <meta name="description" content="You are already in orbit. Thrust to change course, gather the motes, and skim the dashed halo." />
+  <meta property="og:title" content="VELA — Gravity Sail" />
+  <meta property="og:description" content="You are already in orbit. Thrust to change course, gather the motes, and skim the dashed halo." />
+  <meta property="og:type" content="website" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #08080c;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: #e8e4d9;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #game-container {
+      position: relative;
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      display: block;
+      background: #08080c;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    #ui {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+    }
+    #top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 12px 16px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .stat {
+      background: rgba(8,8,12,0.75);
+      border: 1px solid rgba(200,190,160,0.22);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+    .stat strong { color: #d4c8a0; }
+    #heat-wrap {
+      flex: 1;
+      min-width: 120px;
+      max-width: 180px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #heat-label { font-size: 11px; opacity: 0.65; text-align: center; letter-spacing: 1px; }
+    #heat-bar {
+      height: 8px;
+      background: rgba(30,30,40,0.85);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid rgba(200,190,160,0.18);
+    }
+    #heat-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3d6b4f, #c9a227, #c94c3a);
+      transition: width 0.05s linear;
+      border-radius: 3px;
+    }
+    #heat-fill.locked {
+      background: #c94c3a;
+      animation: pulse 0.55s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    .btn {
+      pointer-events: auto;
+      background: rgba(8,8,12,0.75);
+      border: 1px solid rgba(200,190,160,0.32);
+      color: #e8e4d9;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn:hover { background: rgba(30,30,40,0.9); border-color: rgba(200,190,160,0.55); }
+    #btn-row { display: flex; gap: 8px; }
+    #center-msg {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s;
+      padding: 0 16px;
+    }
+    #center-msg.show { opacity: 1; }
+    #center-msg h1 {
+      font-size: clamp(32px, 9vw, 52px);
+      font-weight: 300;
+      letter-spacing: 14px;
+      color: #e8e4d9;
+      text-shadow: 0 0 40px rgba(200,190,160,0.35);
+      margin-bottom: 10px;
+    }
+    #center-msg p {
+      font-size: 14px;
+      opacity: 0.72;
+      max-width: 340px;
+      line-height: 1.55;
+      margin: 0 auto 18px;
+    }
+    #center-msg .hint {
+      font-size: 12px;
+      opacity: 0.45;
+      margin-top: 18px;
+      letter-spacing: 0.5px;
+    }
+    .action-btn {
+      pointer-events: auto;
+      margin-top: 8px;
+      background: transparent;
+      border: 1px solid rgba(200,190,160,0.5);
+      color: #e8e4d9;
+      padding: 11px 30px;
+      border-radius: 6px;
+      font-size: 14px;
+      letter-spacing: 2.5px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .action-btn:hover {
+      background: rgba(200,190,160,0.1);
+      border-color: rgba(200,190,160,0.85);
+    }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5,5,10,0.78);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+    }
+    #overlay.show { display: flex; }
+    #overlay-content {
+      text-align: center;
+      max-width: 380px;
+      padding: 28px 20px;
+    }
+    #overlay-content h2 {
+      font-weight: 300;
+      letter-spacing: 7px;
+      margin-bottom: 12px;
+      font-size: 22px;
+    }
+    #overlay-content p {
+      opacity: 0.7;
+      font-size: 13px;
+      line-height: 1.65;
+      margin-bottom: 22px;
+      white-space: pre-line;
+    }
+    .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    #toast {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(20,20,28,0.92);
+      border: 1px solid rgba(200,190,160,0.35);
+      color: #e8e4d9;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 20;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="c"></canvas>
+    <div id="ui">
+      <div id="top-bar">
+        <div class="stat">SCORE <strong id="score">0</strong></div>
+        <div id="heat-wrap">
+          <div id="heat-label">SAIL HEAT</div>
+          <div id="heat-bar"><div id="heat-fill"></div></div>
+        </div>
+        <div class="stat">BEST <strong id="best">0</strong></div>
+        <div id="btn-row">
+          <button class="btn" id="invite-btn" title="Copy link to invite friends">INVITE</button>
+          <button class="btn" id="pause-btn">PAUSE</button>
+        </div>
+      </div>
+    </div>
+    <div id="center-msg" class="show">
+      <h1>VELA</h1>
+      <p>You are already in orbit.<br>Thrust to change course, gather the motes,<br>and skim the dashed halo.</p>
+      <button class="action-btn" id="start-btn">BEGIN</button>
+      <div class="hint">Hold to thrust · WASD / Arrows · P to pause</div>
+    </div>
+    <div id="overlay">
+      <div id="overlay-content">
+        <h2 id="overlay-title">PAUSED</h2>
+        <p id="overlay-desc"></p>
+        <div class="btn-row">
+          <button class="action-btn" id="resume-btn" style="display:none">RESUME</button>
+          <button class="action-btn" id="restart-btn">RESTART</button>
+          <button class="action-btn" id="invite-btn2">INVITE</button>
+        </div>
+      </div>
+    </div>
+    <div id="toast">Link copied — send it to a friend</div>
+  </div>
+
+  <script>
+  (() => {
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const heatFill = document.getElementById('heat-fill');
+    const heatLabel = document.getElementById('heat-label');
+    const centerMsg = document.getElementById('center-msg');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    const resumeBtn = document.getElementById('resume-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const startBtn = document.getElementById('start-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const inviteBtn = document.getElementById('invite-btn');
+    const inviteBtn2 = document.getElementById('invite-btn2');
+    const toast = document.getElementById('toast');
+
+    // ─── Constants ───────────────────────────────────────────────
+    const W = 800, H = 600;
+    const THRUST = 0.19;
+    const MAX_SPEED = 7.8;
+    const HEAT_RATE = 0.52;
+    const COOL_RATE = 0.34;
+    const LOCK_THRESHOLD = 100;
+    const COOL_TO_UNLOCK = 32;
+    const MOTE_RADIUS = 7;
+    const STAR_CORE = 13;
+    const PLAYER_R = 11;
+    const HALO_RADIUS = 158;
+    const HALO_THICK = 20;
+
+    // ─── State ───────────────────────────────────────────────────
+    let dpr = 1;
+    let running = false;
+    let paused = false;
+    let gameOver = false;
+    let score = 0;
+    let best = +localStorage.getItem('vela_best') || 0;
+    bestEl.textContent = best;
+
+    let player = null;
+    let motes = [];
+    let stars = [];
+    let shards = [];
+    let particles = [];
+    let wave = 1;
+    let waveTimer = 0;
+    let haloBonus = 0;
+    let thrustDir = { x: 0, y: 0 };
+    let thrusting = false;
+    let keys = {};
+    let pointer = { active: false, x: 0, y: 0 };
+
+    // ─── Resize ──────────────────────────────────────────────────
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = (W * scale) + 'px';
+      canvas.style.height = (H * scale) + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ─── Helpers ─────────────────────────────────────────────────
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    // ─── Invite ──────────────────────────────────────────────────
+    function copyInvite() {
+      const url = location.href.split('?')[0].split('#')[0];
+      const text = 'Play VELA with me — gravity sail in orbit:\n' + url;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showToast).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+      function fallbackCopy() {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showToast(); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+    }
+    function showToast() {
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+    inviteBtn.addEventListener('click', copyInvite);
+    inviteBtn2.addEventListener('click', copyInvite);
+
+    // ─── Entities ────────────────────────────────────────────────
+    function createPlayer() {
+      return {
+        x: W / 2, y: H / 2,
+        vx: 1.35, vy: 0,
+        heat: 0,
+        locked: false,
+        angle: 0,
+        trail: []
+      };
+    }
+
+    function spawnMote() {
+      const a = Math.random() * Math.PI * 2;
+      const r = HALO_RADIUS + rand(-45, 75);
+      return {
+        x: W/2 + Math.cos(a) * r,
+        y: H/2 + Math.sin(a) * r,
+        r: MOTE_RADIUS,
+        phase: Math.random() * Math.PI * 2,
+        collected: false
+      };
+    }
+
+    function spawnStar(forceOuter = false) {
+      let x, y, tries = 0;
+      do {
+        if (forceOuter || Math.random() < 0.45) {
+          const a = Math.random() * Math.PI * 2;
+          const r = rand(230, 350);
+          x = W/2 + Math.cos(a) * r;
+          y = H/2 + Math.sin(a) * r;
+        } else {
+          x = rand(50, W-50);
+          y = rand(50, H-50);
+        }
+        tries++;
+      } while (dist({x,y}, {x:W/2,y:H/2}) < 95 && tries < 25);
+      return {
+        x, y,
+        r: rand(24, 38),
+        pulse: Math.random() * Math.PI * 2,
+        core: STAR_CORE
+      };
+    }
+
+    function spawnShard() {
+      const side = Math.floor(Math.random() * 4);
+      let x, y, vx, vy;
+      if (side === 0) { x = -25; y = rand(0,H); vx = rand(0.7,2.0); vy = rand(-0.7,0.7); }
+      else if (side === 1) { x = W+25; y = rand(0,H); vx = -rand(0.7,2.0); vy = rand(-0.7,0.7); }
+      else if (side === 2) { y = -25; x = rand(0,W); vy = rand(0.7,2.0); vx = rand(-0.7,0.7); }
+      else { y = H+25; x = rand(0,W); vy = -rand(0.7,2.0); vx = rand(-0.7,0.7); }
+      return { x, y, vx, vy, r: rand(5,12), rot: 0, rotSpd: rand(-0.1,0.1) };
+    }
+
+    function addParticles(x, y, n, color, speed = 2) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = rand(0.25, speed);
+        particles.push({
+          x, y,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          life: rand(0.35, 0.95),
+          maxLife: 1,
+          r: rand(1.1, 3.2),
+          color
+        });
+      }
+    }
+
+    // ─── Input ───────────────────────────────────────────────────
+    function updateThrustInput() {
+      let dx = 0, dy = 0;
+
+      if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
+      if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
+      if (keys['ArrowUp'] || keys['w'] || keys['W']) dy -= 1;
+      if (keys['ArrowDown'] || keys['s'] || keys['S']) dy += 1;
+
+      if (pointer.active && player) {
+        dx = pointer.x - player.x;
+        dy = pointer.y - player.y;
+      }
+
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      for (const pad of pads) {
+        if (!pad) continue;
+        const lx = pad.axes[0] || 0;
+        const ly = pad.axes[1] || 0;
+        if (Math.abs(lx) > 0.15 || Math.abs(ly) > 0.15) {
+          dx = lx; dy = ly;
+        }
+      }
+
+      const len = Math.hypot(dx, dy);
+      if (len > 0.01) {
+        thrustDir.x = dx / len;
+        thrustDir.y = dy / len;
+        thrusting = true;
+      } else {
+        thrusting = false;
+        thrustDir.x = 0;
+        thrustDir.y = 0;
+      }
+    }
+
+    window.addEventListener('keydown', e => {
+      keys[e.key] = true;
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+        if (running && !gameOver) togglePause();
+      }
+      if ((e.key === ' ' || e.key === 'Enter') && gameOver) restart();
+    });
+    window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    function pointerPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const scaleY = H / rect.height;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      pointer.active = true;
+      const p = pointerPos(e);
+      pointer.x = p.x; pointer.y = p.y;
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!pointer.active) return;
+      const p = pointerPos(e);
+      pointer.x = p.x; pointer.y = p.y;
+    });
+    canvas.addEventListener('pointerup', () => { pointer.active = false; });
+    canvas.addEventListener('pointercancel', () => { pointer.active = false; });
+
+    // ─── Game flow ───────────────────────────────────────────────
+    function startGame() {
+      player = createPlayer();
+      motes = [];
+      stars = [];
+      shards = [];
+      particles = [];
+      score = 0;
+      wave = 1;
+      waveTimer = 0;
+      haloBonus = 0;
+      gameOver = false;
+      paused = false;
+      running = true;
+      centerMsg.classList.remove('show');
+      overlay.classList.remove('show');
+      scoreEl.textContent = '0';
+      heatFill.style.width = '0%';
+      heatFill.classList.remove('locked');
+      heatLabel.textContent = 'SAIL HEAT';
+
+      for (let i = 0; i < 8; i++) motes.push(spawnMote());
+      for (let i = 0; i < 3; i++) stars.push(spawnStar(true));
+    }
+
+    function endRun(reason) {
+      gameOver = true;
+      running = false;
+      if (score > best) {
+        best = score;
+        localStorage.setItem('vela_best', best);
+        bestEl.textContent = best;
+      }
+      overlayTitle.textContent = 'RUN ENDED';
+      overlayDesc.textContent = reason + '\n\nScore: ' + score + (score >= best && score > 0 ? '  ·  New best!' : '');
+      resumeBtn.style.display = 'none';
+      overlay.classList.add('show');
+    }
+
+    function togglePause() {
+      if (gameOver) return;
+      paused = !paused;
+      if (paused) {
+        overlayTitle.textContent = 'PAUSED';
+        overlayDesc.textContent = 'Hold anywhere to thrust. Collect motes.\nAvoid star hearts. Skim the dashed halo for bonus.';
+        resumeBtn.style.display = 'inline-block';
+        overlay.classList.add('show');
+      } else {
+        overlay.classList.remove('show');
+      }
+    }
+
+    function restart() {
+      overlay.classList.remove('show');
+      startGame();
+    }
+
+    startBtn.addEventListener('click', startGame);
+    pauseBtn.addEventListener('click', () => { if (running && !gameOver) togglePause(); });
+    resumeBtn.addEventListener('click', () => { if (paused) togglePause(); });
+    restartBtn.addEventListener('click', restart);
+
+    // ─── Update ──────────────────────────────────────────────────
+    let last = performance.now();
+    function update(dt) {
+      if (!running || paused || gameOver) return;
+
+      updateThrustInput();
+
+      // Heat
+      if (thrusting && !player.locked) {
+        player.heat += HEAT_RATE * 60 * dt;
+        if (player.heat >= LOCK_THRESHOLD) {
+          player.heat = LOCK_THRESHOLD;
+          player.locked = true;
+          heatLabel.textContent = 'SAIL LOCKED';
+          heatFill.classList.add('locked');
+          addParticles(player.x, player.y, 14, 'rgba(200,70,50,0.9)', 3.2);
+        }
+      } else {
+        player.heat -= COOL_RATE * 60 * dt;
+        if (player.heat < 0) player.heat = 0;
+        if (player.locked && player.heat <= COOL_TO_UNLOCK) {
+          player.locked = false;
+          heatLabel.textContent = 'SAIL HEAT';
+          heatFill.classList.remove('locked');
+        }
+      }
+      heatFill.style.width = clamp(player.heat, 0, 100) + '%';
+
+      // Thrust
+      if (thrusting && !player.locked) {
+        player.vx += thrustDir.x * THRUST * 60 * dt;
+        player.vy += thrustDir.y * THRUST * 60 * dt;
+        player.angle = Math.atan2(thrustDir.y, thrustDir.x);
+        if (Math.random() < 0.55) {
+          addParticles(
+            player.x - Math.cos(player.angle) * 11,
+            player.y - Math.sin(player.angle) * 11,
+            1, 'rgba(170,195,220,0.65)', 1.6
+          );
+        }
+      }
+
+      // Mild central gravity
+      const dx = W/2 - player.x;
+      const dy = H/2 - player.y;
+      const distC = Math.hypot(dx, dy) || 1;
+      const grav = 0.0115;
+      player.vx += (dx / distC) * grav * 60 * dt;
+      player.vy += (dy / distC) * grav * 60 * dt;
+
+      // Speed limit
+      const spd = Math.hypot(player.vx, player.vy);
+      if (spd > MAX_SPEED) {
+        player.vx = (player.vx / spd) * MAX_SPEED;
+        player.vy = (player.vy / spd) * MAX_SPEED;
+      }
+
+      player.x += player.vx;
+      player.y += player.vy;
+
+      // Soft wrap
+      if (player.x < -30) player.x = W + 30;
+      if (player.x > W + 30) player.x = -30;
+      if (player.y < -30) player.y = H + 30;
+      if (player.y > H + 30) player.y = -30;
+
+      // Trail
+      player.trail.push({ x: player.x, y: player.y });
+      if (player.trail.length > 20) player.trail.shift();
+
+      // Halo skim bonus
+      const distHalo = Math.abs(distC - HALO_RADIUS);
+      if (distHalo < HALO_THICK / 2 && spd > 1.4) {
+        haloBonus += dt * 14;
+        if (haloBonus >= 1) {
+          score += Math.floor(haloBonus);
+          haloBonus %= 1;
+          scoreEl.textContent = score;
+        }
+      }
+
+      // Motes
+      for (const m of motes) {
+        if (m.collected) continue;
+        m.phase += dt * 3.2;
+        if (dist(player, m) < PLAYER_R + m.r) {
+          m.collected = true;
+          score += 10;
+          scoreEl.textContent = score;
+          addParticles(m.x, m.y, 11, 'rgba(220,200,140,0.95)', 2.6);
+        }
+      }
+      motes = motes.filter(m => !m.collected);
+      while (motes.length < 6 + Math.floor(wave / 2)) {
+        motes.push(spawnMote());
+      }
+
+      // Stars
+      for (const s of stars) {
+        s.pulse += dt * 2.1;
+        if (dist(player, s) < s.core + PLAYER_R * 0.65) {
+          endRun('You touched the heart of a star.');
+          return;
+        }
+      }
+
+      // Shards
+      for (const sh of shards) {
+        sh.x += sh.vx;
+        sh.y += sh.vy;
+        sh.rot += sh.rotSpd;
+        if (dist(player, sh) < sh.r + PLAYER_R) {
+          endRun('A drifting shard tore the sail.');
+          return;
+        }
+      }
+      shards = shards.filter(sh => sh.x > -45 && sh.x < W+45 && sh.y > -45 && sh.y < H+45);
+
+      // Particles
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= dt;
+      }
+      particles = particles.filter(p => p.life > 0);
+
+      // Waves
+      waveTimer += dt;
+      if (waveTimer > 17 + wave * 2.2) {
+        waveTimer = 0;
+        wave++;
+        if (stars.length < 3 + wave) stars.push(spawnStar());
+        for (let i = 0; i < 1 + Math.floor(wave / 2); i++) shards.push(spawnShard());
+      }
+    }
+
+    // ─── Draw ────────────────────────────────────────────────────
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Ink-sea background
+      const grd = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, 450);
+      grd.addColorStop(0, '#101018');
+      grd.addColorStop(0.55, '#0a0a10');
+      grd.addColorStop(1, '#050508');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, W, H);
+
+      // faint starfield
+      ctx.fillStyle = 'rgba(210,200,175,0.28)';
+      for (let i = 0; i < 70; i++) {
+        const sx = (i * 97 + 13) % W;
+        const sy = (i * 53 + 29) % H;
+        const r = (i % 5 === 0) ? 1.3 : 0.65;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // dashed halo
+      ctx.save();
+      ctx.strokeStyle = 'rgba(190,175,140,0.32)';
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([7, 11]);
+      ctx.beginPath();
+      ctx.arc(W/2, H/2, HALO_RADIUS, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (player) {
+        const d = Math.abs(Math.hypot(player.x - W/2, player.y - H/2) - HALO_RADIUS);
+        if (d < HALO_THICK) {
+          const alpha = 0.12 + (1 - d/HALO_THICK) * 0.28;
+          ctx.strokeStyle = `rgba(220,200,145,${alpha})`;
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.arc(W/2, H/2, HALO_RADIUS, 0, Math.PI*2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      // gravity well hint
+      ctx.beginPath();
+      ctx.arc(W/2, H/2, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(190,175,140,0.35)';
+      ctx.fill();
+
+      // motes (bone-gold)
+      for (const m of motes) {
+        const glow = 0.55 + 0.45 * Math.sin(m.phase);
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r + 4, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(220,200,145,${0.1 * glow})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(232,215,160,${0.7 + 0.3*glow})`;
+        ctx.fill();
+      }
+
+      // stars
+      for (const s of stars) {
+        const pulse = 0.82 + 0.18 * Math.sin(s.pulse);
+        const g = ctx.createRadialGradient(s.x, s.y, s.core*0.25, s.x, s.y, s.r);
+        g.addColorStop(0, `rgba(255,175,90,${0.38*pulse})`);
+        g.addColorStop(0.45, `rgba(200,70,35,${0.14*pulse})`);
+        g.addColorStop(1, 'rgba(60,15,8,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fill();
+        // deadly heart
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.core * pulse, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(255,215,150,${0.92*pulse})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.core * 0.4, 0, Math.PI*2);
+        ctx.fillStyle = '#fff6e0';
+        ctx.fill();
+      }
+
+      // shards
+      for (const sh of shards) {
+        ctx.save();
+        ctx.translate(sh.x, sh.y);
+        ctx.rotate(sh.rot);
+        ctx.fillStyle = 'rgba(155,145,135,0.88)';
+        ctx.beginPath();
+        ctx.moveTo(sh.r, 0);
+        ctx.lineTo(-sh.r*0.55, sh.r*0.75);
+        ctx.lineTo(-sh.r*0.35, -sh.r*0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // particles
+      for (const p of particles) {
+        const a = clamp(p.life / p.maxLife, 0, 1);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * a, 0, Math.PI*2);
+        ctx.fillStyle = p.color.replace(/[\d.]+\)$/, a.toFixed(2) + ')');
+        ctx.fill();
+      }
+
+      // player trail
+      if (player && player.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(player.trail[0].x, player.trail[0].y);
+        for (let i = 1; i < player.trail.length; i++) {
+          ctx.lineTo(player.trail[i].x, player.trail[i].y);
+        }
+        ctx.strokeStyle = 'rgba(175,185,205,0.22)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // player — silver mast + bone sail
+      if (player) {
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.rotate(player.angle);
+
+        // mast (silver)
+        ctx.strokeStyle = player.locked ? 'rgba(180,100,80,0.9)' : 'rgba(195,200,210,0.95)';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-9, 0);
+        ctx.lineTo(11, 0);
+        ctx.stroke();
+
+        // sail (bone / silver)
+        const sailColor = player.locked
+          ? 'rgba(185,95,75,0.88)'
+          : 'rgba(218,210,190,0.92)';
+        ctx.fillStyle = sailColor;
+        ctx.beginPath();
+        ctx.moveTo(1, 0);
+        ctx.quadraticCurveTo(9, -15, 15, -5);
+        ctx.quadraticCurveTo(11, 0, 15, 5);
+        ctx.quadraticCurveTo(9, 15, 1, 0);
+        ctx.fill();
+
+        // sail edge highlight
+        ctx.strokeStyle = player.locked
+          ? 'rgba(220,140,110,0.5)'
+          : 'rgba(235,225,205,0.55)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // thrust glow
+        if (thrusting && !player.locked) {
+          ctx.beginPath();
+          ctx.arc(-7, 0, 6, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(150,185,220,0.3)';
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    // ─── Loop ────────────────────────────────────────────────────
+    function loop(now) {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+  })();
+  </script>
+</body>
+</html>
